@@ -18,6 +18,8 @@ from torch_geometric.data import Dataset as GeometricDataset, Batch
 from torch_geometric.data import Data as GeometricData
 from torch_geometric.loader.dataloader import Collater as GeometricCollator
 
+from util.visualization import plot_vertices_and_faces #Ale
+
 
 class TriangleNodes(GeometricDataset):
 
@@ -174,8 +176,8 @@ class TriangleNodesWithSequenceIndices(TriangleNodes):
         self.sequence_stride = config.sequence_stride
         for i in range(len(self.cached_vertices)):
             self.cached_vertices[i] = np.array(self.cached_vertices[i])
-            for j in range(len(self.cached_faces[i])):
-                max_inner_face_len = max(max_inner_face_len, len(self.cached_faces[i][j]))
+            for j in range(len(self.cached_faces[i])): # conta le facce per vertice verificando che siano tutti triangoli
+                max_inner_face_len = max(max_inner_face_len, len(self.cached_faces[i][j]))           
         print('Longest inner face sequence', max_inner_face_len)
         assert max_inner_face_len == 3, f"Only triangles are supported, but found a face with {max_inner_face_len}."
         self.sequence_indices = []
@@ -185,7 +187,9 @@ class TriangleNodesWithSequenceIndices(TriangleNodes):
             sequence_len = len(self.cached_faces[i]) * self.vq_depth * self.vq_depth_factor + 1 + 1
             max_face_sequence_len = max(max_face_sequence_len, sequence_len)
             min_face_sequence_len = min(min_face_sequence_len, sequence_len)
-            self.sequence_indices.append((i, 0, False))
+            self.sequence_indices.append((i, 0, False)) #rappresento ogni mesh come una sequenza di facce
+            stride = config.sequence_stride
+            max = max(1, sequence_len - self.block_size + self.padding + 1)
             for j in range(config.sequence_stride, max(1, sequence_len - self.block_size + self.padding + 1), config.sequence_stride):  # todo: possible bug? +1 added recently
                 self.sequence_indices.append((i, j, True if split == 'train' else False))
             if sequence_len > self.block_size: 
@@ -224,6 +228,8 @@ class TriangleNodesWithFacesAndSequenceIndices(TriangleNodesWithSequenceIndices)
 
     def get(self, idx):
         i, j, randomness = self.sequence_indices[idx]
+        #added Ale
+        plot_vertices_and_faces( self.cached_vertices[idx],  self.cached_faces[idx], f"runs/transformer_FT03001627/inf_image_topp/{idx}_raw.jpg") #DEBUG
         if randomness:
             sequence_len = len(self.cached_faces[i]) * self.vq_depth * self.vq_depth_factor + 1 + 1
             j = min(max(0, j + np.random.randint(-self.sequence_stride // 2, self.sequence_stride // 2)), sequence_len - self.block_size + self.padding)

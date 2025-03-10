@@ -73,10 +73,12 @@ class GraphEncoderTriangleSoup(nn.Module):
 
     @staticmethod
     def distribute_features(features, face_indices, num_vertices):
+        # [Ale 17/02/2025] Distributes per-face features to per-vertex features
         N, F = features.shape
         features = features.reshape(N * 3, F // 3)
         assert features.shape[0] == face_indices.shape[0] * face_indices.shape[1], "Features and face indices must match in size"
         vertex_features = torch.zeros([num_vertices, features.shape[1]], device=features.device)
+        # Scatter mean to distribute features from face vertices to unique vertices
         torch_scatter.scatter_mean(features, face_indices.reshape(-1), out=vertex_features, dim=0)
         distributed_features = vertex_features[face_indices.reshape(-1), :]
         distributed_features = distributed_features.reshape(N, F)

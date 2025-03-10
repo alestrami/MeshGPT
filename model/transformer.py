@@ -104,7 +104,11 @@ class QuantSoupTransformer(TransformerBase):
             return logits, new_kv_cache
 
     @torch.no_grad()
+<<<<<<< HEAD
     def generate(self, idx, fin, fout, tokenizer, max_new_tokens=10000, temperature=1.0, top_k=None, top_p=0.9, use_kv_cache=False):
+=======
+    def generate_old(self, idx, fin, fout, tokenizer, max_new_tokens=10000, temperature=1.0, top_k=None, top_p=0.9, use_kv_cache=False):
+>>>>>>> 1482bba (first commit)
         """
         Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
         the sequence max_new_tokens times, feeding the predictions back into the model each time.
@@ -127,6 +131,7 @@ class QuantSoupTransformer(TransformerBase):
         current_fin = fin
         current_fout = fout
         one_t = torch.LongTensor([1]).to(fin.device)
+<<<<<<< HEAD
         for iteration in range(max_new_tokens):
 
             if not use_kv_cache or (iteration == 0 and idx.shape[-1] > 1):
@@ -135,6 +140,21 @@ class QuantSoupTransformer(TransformerBase):
                 fin_cond = current_fin if current_fin.size(1) <= self.config.block_size else current_fin[:, -self.config.block_size:]
                 fout_cond = current_fout if current_fout.size(1) <= self.config.block_size else current_fout[:, -self.config.block_size:]
                 fout_cond = torch.from_numpy(get_shifted_sequence(fout_cond[0].cpu().numpy())).to(idx_cond.device).unsqueeze(0)
+=======
+        block_size_hits = 0 
+
+        for iteration in range(max_new_tokens):
+            if not use_kv_cache or (iteration == 0 and idx.shape[-1] > 1):
+                # *********qui*******
+                # if the sequence context is growing too long we must crop it at block_size
+                if idx.size(1) > self.config.block_size:
+                    block_size_hits += 1  # Increment counter
+                    print(f"[model/trasformer.py#generate] Block size limit hit {block_size_hits} times: idx.size(1) = {idx.size(1)}")
+                idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
+                fin_cond = current_fin if current_fin.size(1) <= self.config.block_size else current_fin[:, -self.config.block_size:]
+                fout_cond = current_fout if current_fout.size(1) <= self.config.block_size else current_fout[:, -self.config.block_size:]
+                fout_cond = torch.from_numpy(get_shifted_sequence(fout_cond[0].cpu().numpy())).to(idx_cond.device).unsqueeze(0) #la shiftano prendendo la fine se troppo grande
+>>>>>>> 1482bba (first commit)
             else:
                 idx_cond = idx[:, -1:]
                 fin_cond = current_fin[:, -1:]
@@ -170,6 +190,86 @@ class QuantSoupTransformer(TransformerBase):
                 return idx
         return None
 
+<<<<<<< HEAD
+=======
+    @torch.no_grad()
+    def generate(self, idx, fin, fout, tokenizer, max_new_tokens=10000, temperature=1.0, top_k=None, top_p=0.9, use_kv_cache=False):
+        """
+        Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
+        the sequence max_new_tokens times, feeding the predictions back into the model each time.
+        Most likely you'll want to make sure to be in model.eval() mode of operation for this.
+        """
+        if use_kv_cache and (max_new_tokens + idx.shape[-1] - 1) > self.config.block_size:
+            # print(f"Cannot generate more than {self.config.block_size} tokens with kv cache, setting max new tokens to {self.config.block_size - idx.shape[-1]}")
+            max_new_tokens = self.config.block_size - idx.shape[-1]
+
+        kv_cache = (
+            [torch.empty(2, 0, device=idx.device, dtype=idx.dtype) for _ in range(self.config.n_layer)]
+            if use_kv_cache
+            else None
+        )
+        mask_cache = None
+        if use_kv_cache:
+            ones = torch.ones((self.config.block_size, self.config.block_size), device=idx.device, dtype=torch.bool)
+            mask_cache = torch.tril(ones).unsqueeze(0).unsqueeze(0)
+
+        current_fin = fin
+        current_fout = fout
+        one_t = torch.LongTensor([1]).to(fin.device)
+        block_size_hits = 0 
+        n_mesh=0
+
+        for iteration in range(max_new_tokens):
+            if not use_kv_cache or (iteration == 0 and idx.shape[-1] > 1):
+                # *********qui*******
+                # if the sequence context is growing too long we must crop it at block_size
+                if idx.size(1) > self.config.block_size:
+                    block_size_hits += 1  # Increment counter
+                    print(f"[model/trasformer.py#generate] Block size limit hit {block_size_hits} times: idx.size(1) = {idx.size(1)}")
+                idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
+                fin_cond = current_fin if current_fin.size(1) <= self.config.block_size else current_fin[:, -self.config.block_size:]
+                fout_cond = current_fout if current_fout.size(1) <= self.config.block_size else current_fout[:, -self.config.block_size:]
+                fout_cond = torch.from_numpy(get_shifted_sequence(fout_cond[0].cpu().numpy())).to(idx_cond.device).unsqueeze(0) #la shiftano prendendo la fine se troppo grande
+            else:
+                idx_cond = idx[:, -1:]
+                fin_cond = current_fin[:, -1:]
+                fout_cond = current_fout[:, -1:]  # note: don't need shifting since we assume block_size is huge enough to not need shifting
+            # forward the model to get the logits for the index in the sequence
+            logits, kv_cache = self(idx_cond, fin_cond, fout_cond, tokenizer, kv_cache=kv_cache if use_kv_cache else None, mask_cache=mask_cache)
+            # pluck the logits at the final step and scale by desired temperature
+            logits = logits[:, -1, :] / temperature
+            # optionally crop the logits to only the top k options
+            if top_k is not None:
+                v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+                logits[logits < v[:, [-1]]] = -float('Inf')
+
+            # TODO: Introduce hard constraints
+
+            # sample from the distribution
+            # apply softmax to convert logits to (normalized) probabilities
+            if top_p is not None:
+                idx_next = top_p_sampling(logits, top_p)
+            else:
+                probs = F.softmax(logits, dim=-1)
+                idx_next = torch.multinomial(probs, num_samples=1)
+            # append sampled index to the running sequence and continue
+            idx = torch.cat((idx, idx_next), dim=1)
+            last_fin_cond = current_fin[0, -1]
+            if last_fin_cond == self.finemb_size - 1 or (iteration == 0 and idx.shape[-1] == 2):
+                current_fin = torch.cat((current_fin, (3 * one_t[0]).unsqueeze(0).unsqueeze(0)), dim=1)
+                current_fout = torch.cat((current_fout, (current_fout[0, -1] + 1).unsqueeze(0).unsqueeze(0)), dim=1)
+            else:
+                current_fin = torch.cat((current_fin, (current_fin[0, -1] + 1).unsqueeze(0).unsqueeze(0)), dim=1)
+                current_fout = torch.cat((current_fout, (current_fout[0, -1]).unsqueeze(0).unsqueeze(0)), dim=1)
+            if idx_next == 1 and n_mesh>4:
+                return idx
+            elif idx_next == 1:  # If '1' is predicted (end token)
+                n_mesh += 1
+                print(f"End token predicted idx.size(1) = {idx.size(1)}, but continuing to generate more tokens... n_mesh {n_mesh}")
+                continue  # Allow generation to continue, skipping the stop condition
+            
+        return None
+>>>>>>> 1482bba (first commit)
 
     @torch.no_grad()
     def generate_with_beamsearch(self, idx, fin, fout, tokenizer, max_new_tokens=10000, use_kv_cache=False, beam_width=6):

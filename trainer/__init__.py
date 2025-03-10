@@ -97,7 +97,7 @@ def create_trainer(name, config):
 
     precision = 'bf16' if torch.cuda.is_bf16_supported() else 16
     precision = 32
-
+    print(f"trainer/__init__.py gpu_cpunt {gpu_count}")
     if gpu_count > 1:
         trainer = Trainer(
             accelerator='gpu',

@@ -1,10 +1,10 @@
 import random
 import sys
+import os
 from model.pointnet import get_pointnet_classifier
 import omegaconf
 import torch
 from pathlib import Path
-
 import trimesh
 
 from dataset.quantized_soup import QuantizedSoupTripletsCreator
@@ -18,12 +18,21 @@ from tqdm import tqdm
 from model.transformer import QuantSoupTransformer
 from pytorch_lightning import seed_everything
 
+import wandb
+
 
 @torch.no_grad()
 def main(config, mode):
+    # Initialize W&B
+    wandb_flag = False
+    if wandb_flag: wandb.init(project="meshAle", mode="offline") 
+    # Enable system metrics logging
+    if wandb_flag: wandb.config.update({"log_system_metrics": True})
+
     seed_everything(42)
     device = torch.device('cuda:0')
     vq_cfg = omegaconf.OmegaConf.load(Path(config.vq_resume).parents[1] / "config.yaml")
+    # prendo il dataset
     dataset = TriangleNodesWithFacesAndSequenceIndices(config, 'train', True, True , config.ft_category)
     prompt_num_faces  = 4
     output_dir_image = Path(f'runs/{config.experiment}/inf_image_{mode}')
@@ -46,6 +55,8 @@ def main(config, mode):
     while k < config.num_val_samples:
 
         data = dataset.get(random.randint(0, len(dataset) - 1))
+        print(data.x.shape)
+        plot_vertices_and_faces(data.x[:,:3].numpy(), data.faces.numpy(),  output_dir_image / f"{k:06d}_start_a.jpg") #Ale added
         soup_sequence, face_in_idx, face_out_idx, target = sequencer.get_completion_sequence(
             data.x.to(device),
             data.edge_index.to(device),
@@ -55,7 +66,7 @@ def main(config, mode):
         )
 
         y = None
-
+        print(f"[inference/infer_meshgpt.py/#main] mode {mode}")
         if mode == "topp":
             # more diversity but more change of bad sequences
             y = model.generate(
@@ -72,14 +83,18 @@ def main(config, mode):
             continue
 
         gen_vertices, gen_faces = sequencer.decode(y[0], decoder)
-        
+        print(f"[inference/infer_meshgpt.py#main] start try mesh gen_vertices {len(gen_vertices)}, gen_faces {len(gen_faces)}")
         try:
+            # dopo che ho generato i vertici e decodificati provo a farci la mesh
             mesh = trimesh.Trimesh(vertices=gen_vertices, faces=gen_faces, process=False)
             if pnet.classifier_guided_filter(mesh, config.ft_category):
                 mesh.export(output_dir_mesh / f"{k:06d}.obj")
                 meshlab_proc(output_dir_mesh / f"{k:06d}.obj")
                 plot_vertices_and_faces(gen_vertices, gen_faces, output_dir_image / f"{k:06d}.jpg")
                 print('Generated mesh', k + 1)
+                print(f"[inference/infer_meshgpt.py/#main] Length of faces of generated mesh {len(mesh.faces)}")
+                # Log to W&B with mode
+                if wandb_flag: wandb.log({"Generated Mesh Face Length": len(mesh.faces)})
                 k = k + 1
         except Exception as e:
             print('Exception occured: ', e)

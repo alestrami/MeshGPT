@@ -30,7 +30,7 @@ class TriangleTokenizationGraphConv(pl.LightningModule):
             self.val_datasets = [TriangleNodesWithFaces(config, 'val', config.scale_augment_val, config.shift_augment_val, '03001627')]
         else:
             self.train_dataset = TriangleNodesWithFaces(config, 'train', config.scale_augment, config.shift_augment, None)
-            self.interesting_categories = [('02828884', '_bench'), ('02871439', '_bookshelf'), ('03001627', ""), ('03211117', '_display'), ('04379243', '_table')]
+            self.interesting_categories = [('02691156', '_airplane')] #[('02828884', '_bench'), ('02871439', '_bookshelf'), ('03001627', ""), ('03211117', '_display'), ('04379243', '_table')]
             self.val_datasets = []
             for cat, name in self.interesting_categories:
                 self.val_datasets.append(TriangleNodesWithFaces(config, 'val', config.scale_augment_val, config.shift_augment_val, cat))
@@ -41,7 +41,7 @@ class TriangleTokenizationGraphConv(pl.LightningModule):
         self.vq = ResidualVQ(
             dim=self.config.embed_dim,
             codebook_size=self.config.n_embed,  # codebook size
-            num_quantizers=config.embed_levels,
+            num_quantizers=config.embed_levels, # Number of quantization layers (residual levels)
             commitment_weight=self.config.embed_loss_weight,  # the weight on the commitment loss
             stochastic_sample_codes=True,
             sample_codebook_temp=config.stochasticity,  # temperature for stochastically sampling codes, 0 would be equivalent to non-stochastic
@@ -146,7 +146,7 @@ class TriangleTokenizationGraphConv(pl.LightningModule):
             optimizer.zero_grad(set_to_none=True)  # type: ignore
         self.log("lr", optimizer.param_groups[0]['lr'], on_step=True, on_epoch=False, prog_bar=False, logger=True, sync_dist=True)  # type: ignore
 
-    def validation_step(self, data, batch_idx, dataloader_idx):
+    def validation_step(self, data, batch_idx, dataloader_idx=0):
         encoded_x = self.encoder(data.x, data.edge_index, data.batch)
         encoded_x = encoded_x.reshape(encoded_x.shape[0] * 3, 192)
         encoded_x = self.distribute_features_fn(encoded_x, data.faces, data.num_vertices.sum(), self.device)
@@ -230,8 +230,8 @@ class TriangleTokenizationGraphConv(pl.LightningModule):
 
     def val_dataloader(self):
         dataloaders = []
-        for val_dataset in self.val_datasets:
-            dataloaders.append(TriangleNodesWithFacesDataloader(val_dataset, batch_size=self.config.batch_size, shuffle=True, drop_last=True, num_workers=self.config.num_workers))
+        for val_dataset in self.val_datasets: # Ale: turned off shuffle in val dataloader as suggested
+            dataloaders.append(TriangleNodesWithFacesDataloader(val_dataset, batch_size=self.config.batch_size, shuffle=False, drop_last=True, num_workers=self.config.num_workers))
         return dataloaders
 
     def get_accuracy(self, x, y):
@@ -262,10 +262,12 @@ def dummy_distribute(features, _face_indices, _n, _device):
 
 @hydra.main(config_path='../config', config_name='meshgpt', version_base='1.2')
 def main(config):
+    print(f"[trainer/train_vocabulary.py] called main. Creating trainer..")
     trainer = create_trainer("TriangleTokens", config)
+    print(f"[trainer/train_vocabulary.py] Trainer created. Creating Model..")
     model = TriangleTokenizationGraphConv(config)
     trainer.fit(model, ckpt_path=config.resume)
 
 
 if __name__ == '__main__':
-    main()
+   main()

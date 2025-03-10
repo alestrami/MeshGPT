@@ -1,6 +1,6 @@
 # data
-dataset: 'shapenet'
-dataset_root: 'data/shapenet/processed_data.pkl'
+dataset: 'planes'
+dataset_root: '/home/sagemaker-user/mesh_metadata_dict.pkl' #'data/shapenet/processed_data.pkl'
 # not actually number of tokens, but the quantization resolution + 3
 num_tokens: 131
 

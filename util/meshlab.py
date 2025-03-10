@@ -4,7 +4,7 @@ import pymeshlab
 def meshlab_proc(meshpath):
     ms = pymeshlab.MeshSet()
     ms.load_new_mesh(str(meshpath))
-    ms.meshing_merge_close_vertices(threshold=pymeshlab.Percentage(1))
+    ms.meshing_merge_close_vertices(threshold=pymeshlab.PercentageValue(1))
     ms.meshing_remove_duplicate_faces()
     ms.meshing_remove_null_faces()
     ms.meshing_remove_duplicate_vertices()
