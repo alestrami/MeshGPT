@@ -48,6 +48,7 @@ class TriangleTokenizationGraphConv(pl.LightningModule):
             shared_codebook=self.config.embed_share,
             decay=self.config.code_decay,
         )
+
         self.register_buffer('smoothing_weight', torch.tensor([2, 10, 200, 10, 2], dtype=torch.float32).unsqueeze(0).unsqueeze(0))
         # print('compiling model...')
         # self.model = torch.compile(model)  # requires PyTorch 2.0
@@ -128,14 +129,14 @@ class TriangleTokenizationGraphConv(pl.LightningModule):
 
         acc = self.get_accuracy(decoded_x, data.y)
         acc_triangle = self.get_triangle_accuracy(decoded_x, data.y)
-        self.log("train/ce_loss", loss.item(), on_step=True, on_epoch=False, prog_bar=True, logger=True, sync_dist=True)
-        self.log("train/mse_loss", loss_tri.item(), on_step=True, on_epoch=False, prog_bar=True, logger=True, sync_dist=True)
-        self.log("train/norm_loss", loss_normals.item(), on_step=True, on_epoch=False, prog_bar=False, logger=True, sync_dist=True)
-        self.log("train/area_loss", loss_areas.item(), on_step=True, on_epoch=False, prog_bar=False, logger=True, sync_dist=True)
-        self.log("train/angle_loss", loss_angles.item(), on_step=True, on_epoch=False, prog_bar=False, logger=True, sync_dist=True)
-        self.log("train/embed_loss", commit_loss.item(), on_step=True, on_epoch=False, prog_bar=False, logger=True, sync_dist=True)
-        self.log("train/acc", acc.item(), on_step=True, on_epoch=False, prog_bar=True, logger=True, sync_dist=True)
-        self.log("train/acc_tri", acc_triangle.item(), on_step=True, on_epoch=False, prog_bar=True, logger=True, sync_dist=True)
+        self.log("train/ce_loss", loss.item(), on_step=True, on_epoch=False, prog_bar=True, logger=True, sync_dist=True, batch_size=self.config.batch_size)
+        self.log("train/mse_loss", loss_tri.item(), on_step=True, on_epoch=False, prog_bar=True, logger=True, sync_dist=True, batch_size=self.config.batch_size)
+        self.log("train/norm_loss", loss_normals.item(), on_step=True, on_epoch=False, prog_bar=False, logger=True, sync_dist=True, batch_size=self.config.batch_size)
+        self.log("train/area_loss", loss_areas.item(), on_step=True, on_epoch=False, prog_bar=False, logger=True, sync_dist=True, batch_size=self.config.batch_size)
+        self.log("train/angle_loss", loss_angles.item(), on_step=True, on_epoch=False, prog_bar=False, logger=True, sync_dist=True, batch_size=self.config.batch_size)
+        self.log("train/embed_loss", commit_loss.item(), on_step=True, on_epoch=False, prog_bar=False, logger=True, sync_dist=True, batch_size=self.config.batch_size)
+        self.log("train/acc", acc.item(), on_step=True, on_epoch=False, prog_bar=True, logger=True, sync_dist=True, batch_size=self.config.batch_size)
+        self.log("train/acc_tri", acc_triangle.item(), on_step=True, on_epoch=False, prog_bar=True, logger=True, sync_dist=True, batch_size=self.config.batch_size)
         loss = loss + loss_tri * self.config.tri_weight + loss_normals * self.config.norm_weight + loss_areas * self.config.area_weight + loss_angles * self.config.angle_weight + commit_loss
         # loss = loss + loss_tri * self.config.tri_weight + commit_loss
         loss = loss / self.config.gradient_accumulation_steps  # scale the loss to account for gradient accumulation
@@ -171,15 +172,15 @@ class TriangleTokenizationGraphConv(pl.LightningModule):
         acc = self.get_accuracy(decoded_x, data.y)
         acc_triangle = self.get_triangle_accuracy(decoded_x, data.y)
         if not torch.isnan(loss).any():
-            self.log(f"val/ce_loss{self.interesting_categories[dataloader_idx][1]}", loss.item(), add_dataloader_idx=False, on_step=False, on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
+            self.log(f"val/ce_loss{self.interesting_categories[dataloader_idx][1]}", loss.item(), add_dataloader_idx=False, on_step=False, on_epoch=True, prog_bar=False, logger=True, sync_dist=True, batch_size=self.config.batch_size)
         if not torch.isnan(loss_c).any():
-            self.log(f"val/mse_loss{self.interesting_categories[dataloader_idx][1]}", loss_c.item(), add_dataloader_idx=False, on_step=False, on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
+            self.log(f"val/mse_loss{self.interesting_categories[dataloader_idx][1]}", loss_c.item(), add_dataloader_idx=False, on_step=False, on_epoch=True, prog_bar=False, logger=True, sync_dist=True, batch_size=self.config.batch_size)
         if not torch.isnan(commit_loss).any():
-            self.log(f"val/embed_loss{self.interesting_categories[dataloader_idx][1]}", commit_loss.item(), add_dataloader_idx=False, on_step=False, on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
+            self.log(f"val/embed_loss{self.interesting_categories[dataloader_idx][1]}", commit_loss.item(), add_dataloader_idx=False, on_step=False, on_epoch=True, prog_bar=False, logger=True, sync_dist=True, batch_size=self.config.batch_size)
         if not torch.isnan(acc).any():
-            self.log(f"val/acc{self.interesting_categories[dataloader_idx][1]}", acc.item(), add_dataloader_idx=False, on_step=False, on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
+            self.log(f"val/acc{self.interesting_categories[dataloader_idx][1]}", acc.item(), add_dataloader_idx=False, on_step=False, on_epoch=True, prog_bar=False, logger=True, sync_dist=True, batch_size=self.config.batch_size)
         if not torch.isnan(acc_triangle).any():
-            self.log(f"val/acc_tri{self.interesting_categories[dataloader_idx][1]}", acc_triangle.item(), add_dataloader_idx=False, on_step=False, on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
+            self.log(f"val/acc_tri{self.interesting_categories[dataloader_idx][1]}", acc_triangle.item(), add_dataloader_idx=False, on_step=False, on_epoch=True, prog_bar=False, logger=True, sync_dist=True, batch_size=self.config.batch_size)
 
     @rank_zero_only
     def on_validation_epoch_end(self):
@@ -217,15 +218,18 @@ class TriangleTokenizationGraphConv(pl.LightningModule):
         for didx, dataset in enumerate([self.train_dataset] + self.val_datasets):
             output_dir_image = self.output_dir_image_train if didx == 0 else self.output_dir_image_val
             for k in range(self.config.num_val_samples):
-                data = dataset.get(k * (len(dataset) // self.config.num_val_samples) % len(dataset))
-                if self.config.ce_output:
+                index = k * (len(dataset) // self.config.num_val_samples) % len(dataset) #Ale
+                data = dataset.get(index)
+                if self.config.ce_output: #Ale: config.yaml def | use quantized predictions
                     coords = data.y / (self.config.num_tokens - 3) - 0.5
                 else:
-                    coords = data.y
-                gen_vertices, gen_faces = triangle_sequence_to_mesh(coords)
+                    coords = data.y # Ale: y is the target i.e. the vertex coordinates x,y,z,x,y,z,x,y,z...
+                gen_vertices, gen_faces = triangle_sequence_to_mesh(coords) #Ale il metodo fa solo reshape
                 plot_vertices_and_faces(gen_vertices, gen_faces, output_dir_image / f"GT_{category_names[didx]}_{k}.jpg")
+                # print(f"Saved GT in {output_dir_image / f'GT_{category_names[didx]}_{k}.jpg'}") #
 
     def train_dataloader(self):
+        print(f"self.config.batch_size {self.config.batch_size}")
         return TriangleNodesWithFacesDataloader(self.train_dataset, batch_size=self.config.batch_size, shuffle=True, drop_last=not self.config.overfit, num_workers=self.config.num_workers, pin_memory=True)
 
     def val_dataloader(self):
@@ -244,13 +248,12 @@ class TriangleTokenizationGraphConv(pl.LightningModule):
             return torch.all(x.argmax(-1).reshape(-1, 9) == y.reshape(-1, 9), dim=-1).sum() / x.shape[0]
         return torch.all((quantize_coordinates(x, self.config.num_tokens - 2).reshape(-1, 9) == quantize_coordinates(y, self.config.num_tokens - 2).reshape(-1, 9)), dim=-1).sum() / (x.shape[0])
 
-
 def distribute_features(features, face_indices, num_vertices, device):
     # N = num triangles
     # features is N3 x 192
     # face_indices is N x 3
     assert features.shape[0] == face_indices.shape[0] * face_indices.shape[1], "Features and face indices must match in size"
-    vertex_features = torch.zeros([num_vertices, features.shape[1]], device=device)
+    vertex_features = torch.zeros([num_vertices, features.shape[1]], device=device) 
     torch_scatter.scatter_mean(features, face_indices.reshape(-1), out=vertex_features, dim=0)
     distributed_features = vertex_features[face_indices.reshape(-1), :]
     return distributed_features
@@ -258,7 +261,6 @@ def distribute_features(features, face_indices, num_vertices, device):
 
 def dummy_distribute(features, _face_indices, _n, _device):
     return features
-
 
 @hydra.main(config_path='../config', config_name='meshgpt', version_base='1.2')
 def main(config):
