@@ -57,7 +57,7 @@ class TriangleNodes(GeometricDataset):
                 self.cached_vertices = data[f'vertices_train'][:1] * multiplier
                 self.cached_faces = data[f'faces_train'][:1] * multiplier
 
-        print(len(self.cached_vertices), "meshes loaded")
+        print(len(self.cached_vertices), "meshes loaded", split)
 
     def len(self):
         return len(self.cached_vertices)
@@ -79,9 +79,9 @@ class TriangleNodes(GeometricDataset):
         if self.shift_augment:
             vertices = shift_vertices(vertices)
         triangles, normals, areas, angles, vertices, faces = create_feature_stack(vertices, faces, self.num_tokens)
-        features = np.hstack([triangles, normals, areas, angles])
+        features = np.hstack([triangles, normals, areas, angles]) # Ale: horizontally stacks these arrays
         face_neighborhood = np.array(trimesh.Trimesh(vertices=vertices, faces=faces, process=False).face_neighborhood)  # type: ignore
-        target = torch.from_numpy(features[:, :9]).float()
+        target = torch.from_numpy(features[:, :9]).float() # Ale: vertex position only 
         if self.use_start_stop:
             features = np.concatenate([np.zeros((1, features.shape[1])), features], axis=0)
             target = torch.cat([target, torch.ones(1, 9) * 0.5], dim=0)
@@ -291,7 +291,7 @@ class Triangles(Dataset):
     def get_all_features_for_shape(self, idx):
         vertices = self.cached_vertices[idx]
         faces = self.cached_faces[idx]
-        feature_stack = create_feature_stack(vertices, faces)[0]
+        feature_stack = create_feature_stack(vertices, faces)[0] # triangles, normals, areas, angles, vertices, faces | so [0] is triangles
         return torch.from_numpy(feature_stack).float(), torch.from_numpy(feature_stack[:, :9]).float()
 
 
