@@ -67,7 +67,8 @@ class TriangleTokenizationGraphConv(pl.LightningModule):
     def configure_optimizers(self):
         parameters = list(self.encoder.parameters()) + list(self.decoder.parameters()) + list(self.pre_quant.parameters()) + list(self.post_quant.parameters()) + list(self.vq.parameters())
         optimizer = torch.optim.AdamW(parameters, lr=self.config.lr, amsgrad=True, weight_decay=self.config.weight_decay)
-        max_steps = int(self.config.max_epoch * len(self.train_dataset) / self.config.batch_size)
+        #num_gpu=torch.cuda.device_count()
+        max_steps = int(self.config.max_epoch * (len(self.train_dataset)) / self.config.batch_size)
         print('Max Steps | First cycle:', max_steps)
         scheduler = CosineAnnealingWarmupRestarts(
             optimizer, first_cycle_steps=max_steps, cycle_mult=1.0,

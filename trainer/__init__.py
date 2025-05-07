@@ -80,7 +80,7 @@ def create_trainer(name, config):
 
     # use wandb logger instead
     if config.logger == 'wandb':
-        logger = WandbLogger(project=f'{name}{config.suffix}', name=config.experiment, id=config.experiment, settings=wandb.Settings(start_method='thread'))
+        logger = WandbLogger(project=f'{name}{config.suffix}', name=config.experiment, id=config.experiment, settings=wandb.Settings(start_method='thread'), offline=True)
     else:
         logger = TensorBoardLogger(name='tb', save_dir=(Path("runs") / config.experiment))
 
